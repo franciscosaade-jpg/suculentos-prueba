@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Galería 3D – Debug</title>
+  <style>
+    body { margin:0; overflow:hidden; background:#000; color:#fff; font-family:system-ui, Arial, sans-serif; }
+    #status { position:fixed; left:8px; top:8px; background:rgba(0,0,0,0.6); padding:8px 10px; border-radius:6px; font-size:12px; z-index:10; }
+  </style>
+</head>
+<body>
+  <div id="status">Cargando…</div>
+  <script type="module">
+    const status = document.getElementById('status');
+    function setStatus(msg){ status.textContent = msg; console.log('[DEBUG]', msg); }
+
+    setStatus('Importando módulos…');
+    import("https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js").then(THREE => {
+      setStatus('THREE cargado ✓');
+      Promise.all([
+        import("https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js"),
+        import("https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js")
+      ]).then(([{ GLTFLoader }, { OrbitControls }]) => {
+        setStatus('GLTFLoader y OrbitControls cargados ✓');
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.6, 6);
+
+        const renderer = new THREE.WebGLRenderer({ antialias:true });
+        renderer.setSize(innerWidth, innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // luces básicas
+        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+        const dir = new THREE.DirectionalLight(0xffffff, 1.5);
+        dir.position.set(5,10,7);
+        scene.add(dir);
+
+        // piso simple
+        const floor = new THREE.Mesh(
+          new THREE.CircleGeometry(4, 64),
+          new THREE.MeshStandardMaterial({ color: 0x8a7f68 })
+        );
+        floor.rotation.x = -Math.PI/2;
+        scene.add(floor);
+
+        // controles
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.target.set(0,1,0);
+
+        // cargar 1 modelo para probar que las rutas funcionan
+        const loader = new GLTFLoader();
+        const modelos = ["colmillos.glb","conejo.glb","duende.glb","mapache.glb","narizon.glb","orejon.glb","paleta.glb","rasta.glb"];
+        setStatus('Intentando cargar: ' + modelos.join(', '));
+
+        let loaded = 0, failed = 0;
+        modelos.forEach((nombre, i) => {
+          loader.load(nombre, (gltf) => {
+            const model = gltf.scene;
+            const ang = (i / modelos.length) * Math.PI * 2;
+            model.position.set(Math.cos(ang)*2.5, 0, Math.sin(ang)*2.5);
+            model.rotation.y = -ang + Math.PI/2;
+            model.scale.setScalar(0.6);
+            scene.add(model);
+            loaded++;
+            setStatus(`Cargados: ${loaded} – Fallidos: ${failed}`);
+          }, undefined, (err) => {
+            failed++;
+            setStatus(`Cargados: ${loaded} – Fallidos: ${failed} (falló ${nombre})`);
+            console.error('Fallo al cargar', nombre, err);
+          });
+        });
+
+        function animate(){
+          requestAnimationFrame(animate);
+          controls.update();
+          renderer.render(scene,camera);
+        }
+        animate();
+
+        addEventListener('resize', () => {
+          camera.aspect = innerWidth/innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(innerWidth, innerHeight);
+        });
+      }).catch(e => {
+        setStatus('ERROR cargando loaders/controles'); console.error(e);
+      });
+    }).catch(e => {
+      setStatus('ERROR importando THREE.js'); console.error(e);
+    });
+  </script>
+</body>
+</html>
